@@ -1,0 +1,12 @@
+# Python Environment
+.venv/
+__pycache__/
+*.pyc
+
+# IDE (VS Code)
+.vscode/
+
+# Data
+data/output/
+# Opcjonalnie: nie śledzimy dużych plików wejściowych
+# data/input/
