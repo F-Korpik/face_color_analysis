@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import cv2
 
 from core.image_loader import load_image
+from core.face_detector import FaceAnalyzer
 
 
 TEST_IMAGE_PATH = os.path.join("data", "input", "test_image.jpg")
@@ -21,18 +22,34 @@ def run_face_analysis():
 
     #Showing image
     try:
-        cv2.imshow('Face Analysis Result', image)
+        # 2. Inicjalizacja i detekcja twarzy (Mediapipe)
+        face_analyzer = FaceAnalyzer()
+        landmarks = face_analyzer.detect_and_get_landmarks(image)
+
+        if landmarks is None:
+            print("Analiza zakończona: Nie wykryto twarzy.")
+            return
+
+        print(f"INFO: Wykryto {landmarks.shape[0]} punktów landmarks (Mediapipe).")
+
+        # --- WIZUALIZACJA WYNIKÓW ---
+        display_image = image.copy()
+
+        # Rysowanie punktów
+        for (x, y) in landmarks:
+            cv2.circle(display_image, (x, y), 1, (0, 0, 255), -1)
+
+        
+        cv2.imshow('Face Landmarks Detection (Mediapipe)', display_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-        print("INFO: Obraz został wyświetlony i zamknięty.")
+        print("INFO: Obraz z landmarkami został wyświetlony i zamknięty.")
 
-    except cv2.error as e:
-        print(f"ERROR: Błąd wyświetlania obrazu przez OpenCV. Upewnij się, że masz GUI (np. na serwerach Docker to może być problem): {e}")
+    except Exception as e:
+        print(f"Wystąpił nieoczekiwany błąd podczas detekcji: {e}")
 
 
-    print("--- Face analysis ends ---")
-    plt.imshow(image)
-
+    print("--- Analiza zakończona pomyślnie ---")
     pass
 
 
