@@ -1,6 +1,7 @@
 # Core Libraries
 opencv-python
 numpy
+matplotlib
 
 # Face Landmark Detection
 # dlib
