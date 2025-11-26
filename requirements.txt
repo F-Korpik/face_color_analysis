@@ -4,4 +4,4 @@ numpy
 matplotlib
 
 # Face Landmark Detection
-# dlib
+mediapipe
