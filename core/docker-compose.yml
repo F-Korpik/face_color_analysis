@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  analysis-engine:
+    # Używamy kropki, aby wskazać, że Docker powinien zbudować obraz
+    # na podstawie Dockerfile znajdującego się w bieżącym katalogu
+    build: .
+
+    # Nazwa, jaką będzie miał Twój kontener
+    container_name: face_color_analyzer
+
+    # Mapowanie katalogów: udostępnienie lokalnych plików do kontenera.
+    # W ten sposób skrypt będzie widział Twoje zdjęcia w data/input/
+    # format: <ścieżka_lokalna>:<ścieżka_w_kontenerze>
+    volumes:
+      - .:/app
+
+    # Wyłączenie standardowego polecenia CMD z Dockerfile,
+    # aby uruchomić interaktywną powłokę (bash)
+    # To jest kluczowe, aby móc uruchamiać skrypty ręcznie i debugować
+    stdin_open: true # Otwiera stdin
+    tty: true        # Alokuje pseudo-TTY
