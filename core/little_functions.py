@@ -17,13 +17,9 @@ def load_image(file_path: str) -> Optional[np.ndarray]:
 
 
 def resize_img(image: np.ndarray, new_height) -> np.ndarray:
-    """
-    Przeskalowuje obraz, aby jego wysokość nie przekraczała max_height,
-    zachowując przy tym proporcje szerokości.
-    """
     h, w = image.shape[:2]
     scale = new_height / h
     new_width = int(w * scale)
-        # INTER_AREA jest najlepszą metodą do zmniejszania obrazów
-    return cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
-    return image
+
+    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    return resized_image, new_width
