@@ -6,10 +6,11 @@ import cv2
 from core.little_functions import load_image
 from core.little_functions import resize_img
 from core.face_detector import FaceAnalyzer
-from core.median_colors import get_median_skin_color
+from core.median_colors import get_median_colors
 
 
 TEST_IMAGE_PATH = os.path.join("data", "input", "test1.jpg")
+img_height = 800
 
 
 def run_face_analysis():
@@ -19,7 +20,7 @@ def run_face_analysis():
     loaded_image = load_image(TEST_IMAGE_PATH)
 
     if loaded_image is not None:
-        image = resize_img(loaded_image, 800)
+        image, img_width = resize_img(loaded_image, img_height)
 
     else:
         print("Analiza zakończona niepowodzeniem: Błąd ładowania obrazu.")
@@ -40,25 +41,37 @@ def run_face_analysis():
 
         # --- WIZUALIZACJA WYNIKÓW ---
         display_image = image.copy()
+        h, w, _ = display_image.shape
 
         # Rysowanie punktów
         for (x, y) in landmarks:
             cv2.circle(display_image, (x, y), 1, (0, 0, 255), -1)
 
-        median_skin_rgb, mask = get_median_skin_color(display_image, landmarks)
+        median_skin_rgb, median_lips_rgb, skin_mask, lips_mask = get_median_colors(image, landmarks)
         print(f"Mediana koloru skóry (BGR): {median_skin_rgb}")
+        print(f"Mediana koloru ust (BGR): {median_lips_rgb}")
 
-        median_color_preview = np.full((100, 100, 3), median_skin_rgb, dtype=np.uint8)
+        median_skin_preview = np.full((100, 100, 3), median_skin_rgb, dtype=np.uint8)
+        median_lips_preview = np.full((100, 100, 3), median_lips_rgb, dtype=np.uint8)
 
-        display_image[0:100, 0:100] = median_color_preview
+        canv_width = w + 110 + 5
+        canv_height = h + 10
+        display_canvas = np.full((canv_height, canv_width, 3), (255, 255, 255), dtype=np.uint8)
+
+        display_canvas[5:h + 5, 110:110 + w] = display_image
+        display_canvas[5:105, 5:105] = median_skin_preview
+        display_canvas[110:210, 5:105] = median_lips_preview
 
 
         # Podgląd
 
-        cv2.imshow('Face Landmarks Detection (Mediapipe)', display_image)
+        cv2.imshow('Face Landmarks Detection (Mediapipe)', display_canvas)
 
-        if mask is not None:
-            cv2.imshow("Maska", mask)
+        if skin_mask is not None:
+            cv2.imshow("Maska skóry", skin_mask)
+
+        if lips_mask is not None:
+            cv2.imshow("Maska ust", lips_mask)
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()
