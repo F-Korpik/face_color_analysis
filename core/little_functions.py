@@ -23,3 +23,12 @@ def resize_img(image: np.ndarray, new_height) -> np.ndarray:
 
     resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
     return resized_image, new_width
+
+
+def get_center(landmarks, iris_indices):
+    pts = landmarks[iris_indices].astype(np.int32)
+
+    (x, y), radius = cv2.minEnclosingCircle(pts)
+    center_x, center_y = (int(x), int(y))
+
+    return center_x, center_y

@@ -47,31 +47,36 @@ def run_face_analysis():
         for (x, y) in landmarks:
             cv2.circle(display_image, (x, y), 1, (0, 0, 255), -1)
 
-        median_skin_rgb, median_lips_rgb, skin_mask, lips_mask = get_median_colors(image, landmarks)
-        print(f"Mediana koloru skóry (BGR): {median_skin_rgb}")
-        print(f"Mediana koloru ust (BGR): {median_lips_rgb}")
 
-        median_skin_preview = np.full((100, 100, 3), median_skin_rgb, dtype=np.uint8)
-        median_lips_preview = np.full((100, 100, 3), median_lips_rgb, dtype=np.uint8)
+        medians, masks= get_median_colors(image, landmarks)
 
         canv_width = w + 110 + 5
         canv_height = h + 10
         display_canvas = np.full((canv_height, canv_width, 3), (255, 255, 255), dtype=np.uint8)
 
         display_canvas[5:h + 5, 110:110 + w] = display_image
-        display_canvas[5:105, 5:105] = median_skin_preview
-        display_canvas[110:210, 5:105] = median_lips_preview
+
+        p_y = 20
+
+        for key, color_value in medians.items():
+            if color_value is not None:
+                preview_square = np.full((100, 100, 3), color_value, dtype=np.uint8)
+                display_canvas[p_y: (p_y + 100), 5: 105] = preview_square
+                cv2.putText(display_canvas, key, (5, p_y - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+
+                p_y += 120  # Przesunięcie w dół dla następnego koloru
+                print(f"{key} - Mediana koloru (BGR): {color_value}")
 
 
         # Podgląd
+        cv2.imshow('Analiza Kolorystyczna', display_canvas)
 
-        cv2.imshow('Face Landmarks Detection (Mediapipe)', display_canvas)
-
-        if skin_mask is not None:
-            cv2.imshow("Maska skóry", skin_mask)
-
-        if lips_mask is not None:
-            cv2.imshow("Maska ust", lips_mask)
+        # Wyświetlanie masek w osobnych oknach
+        for key, mask_value in masks.items():
+            if mask_value is not None:
+                # f-string jest kluczowy dla unikalnych nazw okien
+                cv2.imshow(f"Maska: {key}", mask_value)
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()
