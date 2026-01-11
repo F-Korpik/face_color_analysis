@@ -9,7 +9,7 @@ from core.face_detector import FaceAnalyzer
 from core.median_colors import get_median_colors
 
 
-TEST_IMAGE_PATH = os.path.join("data", "input", "test1.jpg")
+TEST_IMAGE_PATH = os.path.join("data", "input", "test4.jpg")
 img_height = 800
 
 
@@ -72,11 +72,25 @@ def run_face_analysis():
         # Podgląd
         cv2.imshow('Analiza Kolorystyczna', display_canvas)
 
-        # Wyświetlanie masek w osobnych oknach
-        for key, mask_value in masks.items():
-            if mask_value is not None:
-                # f-string jest kluczowy dla unikalnych nazw okien
-                cv2.imshow(f"Maska: {key}", mask_value)
+        # Wyświetlanie masek
+        mask_h = h // 2
+        mask_w = w // 2
+
+        masks_for_display = []
+        for key, value in masks.items():
+            resized_mask, _ = resize_img(value, mask_h)
+            resized_mask = cv2.cvtColor(resized_mask, cv2.COLOR_GRAY2BGR)
+            masks_for_display.append(resized_mask)
+
+        mh, mw = masks_for_display[0].shape[:2]
+        masks_canvas = np.full((mh * 2 + 20, mw * 2 + 20, 3), (255, 255, 255), dtype=np.uint8)
+
+        masks_canvas[5: mh + 5, 5: mw + 5] = masks_for_display[0]
+        masks_canvas[mh + 10: mh * 2 + 10, 5: mw + 5] = masks_for_display[1]
+        masks_canvas[5: mh + 5, mw + 10: mw * 2 + 10] = masks_for_display[2]
+        masks_canvas[mh + 10: mh * 2 + 10, mw + 10: mw * 2 + 10] = masks_for_display[3]
+
+        cv2.imshow('Maski', masks_canvas)
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()

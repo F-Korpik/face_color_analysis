@@ -16,10 +16,15 @@ def load_image(file_path: str) -> Optional[np.ndarray]:
     return img
 
 
-def resize_img(image: np.ndarray, new_height) -> np.ndarray:
+def resize_img(image: np.ndarray, new_height):
     h, w = image.shape[:2]
     scale = new_height / h
     new_width = int(w * scale)
+
+    if new_width > 1200:
+        scale = 1200 / new_width
+        new_height = int(new_height * scale)
+        new_width = int(new_width * scale)
 
     resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
     return resized_image, new_width
