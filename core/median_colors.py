@@ -121,11 +121,11 @@ def get_median_colors(image: np.ndarray, landmarks: np.ndarray):
 
     skin_median, skin_mask = mask_and_median(image, h, w, landmarks, [FACE_OVAL], skin_mask_exclude)
     lips_median, lips_mask = mask_and_median(image, h, w, landmarks, [LIPS_OUTER], lips_mask_exclude)
-    eybrows_median, eybrows_mask = mask_and_median(image,h, w, landmarks, [LEFT_EYEBROW, RIGHT_EYEBROW], [])
+    eyebrows_median, eyebrows_mask = mask_and_median(image,h, w, landmarks, [LEFT_EYEBROW, RIGHT_EYEBROW], [])
     eyes_median, eyes_mask = eyes_mask_and_median(image, landmarks, LEFT_IRIS, RIGHT_IRIS)
 
 
-    medians = {"skin": skin_median, "lips": lips_median, "eybrows": eybrows_median, "iris":eyes_median}
-    masks = {"skin": skin_mask, "lips": lips_mask, "eybrows": eybrows_mask, "iris": eyes_mask}
+    medians = {"skin": skin_median, "lips": lips_median, "eyebrows": eyebrows_median, "iris":eyes_median}
+    masks = {"skin": skin_mask, "lips": lips_mask, "eyebrows": eyebrows_mask, "iris": eyes_mask}
 
     return medians, masks
