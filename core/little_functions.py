@@ -37,3 +37,10 @@ def get_center(landmarks, iris_indices):
     center_x, center_y = (int(x), int(y))
 
     return center_x, center_y
+
+
+def create_rotated_rect(center_x, center_y, width, height, angle):
+    rotated_rect = ((center_x, center_y), (width, height), angle)
+    box = cv2.boxPoints(rotated_rect)
+    box = np.int32(box)
+    return box

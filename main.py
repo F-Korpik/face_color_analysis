@@ -1,4 +1,10 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['ABSL_LOGGING_MIN_INFO_LEVEL'] = '3'
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='google.protobuf.symbol_database')
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
@@ -7,9 +13,10 @@ from core.little_functions import load_image
 from core.little_functions import resize_img
 from core.face_detector import FaceAnalyzer
 from core.median_colors import get_median_colors
+from core.color_analyzer import ColorAnalyzer
 
 
-TEST_IMAGE_PATH = os.path.join("data", "input", "test4.jpg")
+TEST_IMAGE_PATH = os.path.join("data", "tests", "bright_spring.jpg")
 img_height = 800
 
 
@@ -44,11 +51,12 @@ def run_face_analysis():
         h, w, _ = display_image.shape
 
         # Rysowanie punktów
-        for (x, y) in landmarks:
-            cv2.circle(display_image, (x, y), 1, (0, 0, 255), -1)
+        # for (x, y) in landmarks:
+        #     cv2.circle(display_image, (x, y), 1, (0, 0, 255), -1)
 
 
-        medians, masks= get_median_colors(image, landmarks)
+
+        medians, masks = get_median_colors(image, landmarks, display_image)
 
         canv_width = w + 110 + 5
         canv_height = h + 10
@@ -66,7 +74,7 @@ def run_face_analysis():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
 
                 p_y += 120  # Przesunięcie w dół dla następnego koloru
-                print(f"{key} - Mediana koloru (BGR): {color_value}")
+                #print(f"{key} - Mediana koloru (BGR): {color_value}")
 
 
         # Podgląd
@@ -91,6 +99,22 @@ def run_face_analysis():
         masks_canvas[mh + 10: mh * 2 + 10, mw + 10: mw * 2 + 10] = masks_for_display[3]
 
         cv2.imshow('Maski', masks_canvas)
+
+        # --- ANALIZA PÓR ROKU ---
+        if medians:
+            # Inicjalizacja analizatora
+            analyzer = ColorAnalyzer(medians)
+
+            # Uzyskanie wyniku
+            result = analyzer.get_preliminary_season()
+
+            print(f"\n🎨 SKIN SEASON: {result}")
+
+            # # Możesz też wyświetlić to na obrazku
+            # cv2.putText(display_canvas, f"Typ: {result}", (115, 30),
+            #             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+
+
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()
