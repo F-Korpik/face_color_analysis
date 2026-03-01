@@ -37,3 +37,10 @@ def get_center(landmarks, iris_indices):
     center_x, center_y = (int(x), int(y))
 
     return center_x, center_y
+
+
+def create_circle(h, w, center_x, center_y, circle_r):
+    circle = np.zeros((h, w), dtype=np.uint8)
+    cv2.circle(circle, (center_x, center_y), circle_r, 255, -1)
+
+    return circle

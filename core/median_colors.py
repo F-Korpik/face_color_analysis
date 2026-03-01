@@ -1,10 +1,8 @@
 import cv2
 import numpy as np
 import math
-from typing import Optional, Tuple
 
-from core.little_functions import get_center
-
+from core.little_functions import get_center, create_circle
 
 # Indeksy punktów charakterystycznych MediaPipe
 FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
@@ -49,41 +47,71 @@ def mask_and_median(image, h, w, landmarks, base_areas, excluded_features):
     return median_color, final_mask
 
 
-def get_iris_median(image, landmarks, iris_indices, angle):
+def get_iris_median(image, landmarks, iris_indices, angle, debug_image=None):
+    #Obcinanie dołu i góry zaimplementować nakładając dwa koła, a potem obracając
 
+
+    # 1. Pobranie punktów i wyznaczenie okręgu opisującego
     pts = landmarks[iris_indices].astype(np.int32)
-
     (x, y), radius = cv2.minEnclosingCircle(pts)
-    center_x, center_y = (int(x), int(y))
+    center_x, center_y = int(x), int(y)
     r = int(radius)
 
+    # --- KOREKTA NA NAJCIEMNIEJSZY PUNKT (ŹRENICĘ) ---
+    roi_size = max(2, r // 2)
+    y_start, y_end = max(0, center_y - roi_size), min(image.shape[0], center_y + roi_size)
+    x_start, x_end = max(0, center_x - roi_size), min(image.shape[1], center_x + roi_size)
+
+    roi = image[y_start:y_end, x_start:x_end]
+    if roi.size > 0:
+        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        _, _, min_loc, _ = cv2.minMaxLoc(gray_roi)
+        center_x = x_start + min_loc[0]
+        center_y = y_start + min_loc[1]
+
+    # --- LOGIKA MASKI (PIERŚCIEŃ) ---
     h, w = image.shape[:2]
-    mask = np.zeros((h, w), dtype=np.uint8)
+    iris_mask = np.zeros((h, w), dtype=np.uint8)
 
-    width = 2 * r
-    height = r
+    # A. Rysujemy całą tęczówkę, ale nieco mniejszą, by uciąć zewnętrzną krawędź
+    useful_r = int(r * 0.7)
+    cv2.circle(iris_mask, (center_x, center_y), useful_r, 255, -1)
 
-    rotated_rect = ((center_x, center_y), (width, height), angle)
-    box = cv2.boxPoints(rotated_rect)
-    box = np.int32(box)
-    cv2.drawContours(mask, [box], 0, 255, -1)
+    # B. Wycinamy środek (źrenicę)
+    pupil_radius = int(r * 0.325)
+    cv2.circle(iris_mask, (center_x, center_y), pupil_radius, 0, -1)
 
-    pupil_radius = int(r * 0.4)
-    cv2.circle(mask, (center_x, center_y), pupil_radius, 0, -1)
+    # Wycinanie okręgami:
+    circle1_r = int(useful_r * 1.5)
+    c1_y = int(center_y - circle1_r + 0.5 * useful_r)
+    circle1 = create_circle(h, w, center_x, c1_y, circle1_r)
 
-    iris_circle_mask = np.zeros((h, w), dtype=np.uint8)
-    cv2.circle(iris_circle_mask, (center_x, center_y), int(r * 0.85), 255, -1)
+    circle2_r = int(useful_r * 1.2)
+    c2_y = int(center_y + circle2_r - 0.7 * useful_r)
+    circle2 = create_circle(h, w, center_x, c2_y, circle2_r)
 
-    final_iris_mask = cv2.bitwise_and(mask, iris_circle_mask)
+    circles = cv2.bitwise_and(circle1, circle2)
 
-    iris_pixels = image[final_iris_mask > 0]
+    circles_mask = cv2.bitwise_and(circles, iris_mask)
+
+    M = cv2.getRotationMatrix2D((center_x, center_y), -angle, 1.0)
+    final_mask = cv2.warpAffine(circles_mask, M, (circles_mask.shape[1], circles_mask.shape[0]))
+
+
+    # --- POBIERANIE PIKSELI I MEDIANA ---
+    iris_pixels = image[final_mask > 0]
+
     if iris_pixels.size == 0:
-        return None, final_iris_mask
+        return None, final_mask
+
     median_bgr = np.median(iris_pixels, axis=0)
-    return (int(median_bgr[0]), int(median_bgr[1]), int(median_bgr[2])), final_iris_mask
 
 
-def eyes_mask_and_median(image, landmarks, left_eye, right_eye):
+
+    return (int(median_bgr[0]), int(median_bgr[1]), int(median_bgr[2])), final_mask
+
+
+def eyes_mask_and_median(image, landmarks, left_eye, right_eye, debug_image=None):
     l_x, l_y = get_center(landmarks, left_eye)
     r_x, r_y = get_center(landmarks, right_eye)
 
@@ -92,9 +120,8 @@ def eyes_mask_and_median(image, landmarks, left_eye, right_eye):
 
     angle = math.degrees(math.atan2(delta_y, delta_x))
 
-
-    left_color, left_m = get_iris_median(image, landmarks, left_eye, angle)
-    right_color, right_m = get_iris_median(image, landmarks, right_eye, angle)
+    left_color, left_m = get_iris_median(image, landmarks, left_eye, angle, debug_image)
+    right_color, right_m = get_iris_median(image, landmarks, right_eye, angle, debug_image)
 
     if left_color and right_color:
         avg_eye = (np.array(left_color) + np.array(right_color)) // 2
@@ -104,10 +131,20 @@ def eyes_mask_and_median(image, landmarks, left_eye, right_eye):
 
     eyes_mask = cv2.bitwise_or(left_m, right_m)
 
+    # --- DIAGNOSTYKA ---
+    overlay = image.copy()
+    # Zaznaczamy maskę na zielono
+    overlay[eyes_mask > 0] = [0, 255, 0]
+
+    alpha = 0.4
+    debug_image_combined = cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0)
+
+    cv2.imshow("Diagnostyka Maski", debug_image_combined)
+
     return eyes_color, eyes_mask
 
 
-def get_median_colors(image: np.ndarray, landmarks: np.ndarray):
+def get_median_colors(image: np.ndarray, landmarks: np.ndarray, debug_image=None):
     """
     Oblicza medianę koloru skóry (BGR), wykluczając oczy, brwi i usta.
     """
@@ -122,7 +159,7 @@ def get_median_colors(image: np.ndarray, landmarks: np.ndarray):
     skin_median, skin_mask = mask_and_median(image, h, w, landmarks, [FACE_OVAL], skin_mask_exclude)
     lips_median, lips_mask = mask_and_median(image, h, w, landmarks, [LIPS_OUTER], lips_mask_exclude)
     eyebrows_median, eyebrows_mask = mask_and_median(image,h, w, landmarks, [LEFT_EYEBROW, RIGHT_EYEBROW], [])
-    eyes_median, eyes_mask = eyes_mask_and_median(image, landmarks, LEFT_IRIS, RIGHT_IRIS)
+    eyes_median, eyes_mask = eyes_mask_and_median(image, landmarks, LEFT_IRIS, RIGHT_IRIS, debug_image)
 
 
     medians = {"skin": skin_median, "lips": lips_median, "eyebrows": eyebrows_median, "iris":eyes_median}
