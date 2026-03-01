@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import math
 
-from core.little_functions import get_center, create_rotated_rect
+from core.little_functions import get_center, create_circle
 
 # Indeksy punktów charakterystycznych MediaPipe
 FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
@@ -48,13 +48,14 @@ def mask_and_median(image, h, w, landmarks, base_areas, excluded_features):
 
 
 def get_iris_median(image, landmarks, iris_indices, angle, debug_image=None):
-    #ściąć dolne rogi na trójkątno do środka
+    #Obcinanie dołu i góry zaimplementować nakładając dwa koła, a potem obracając
+
+
+    # 1. Pobranie punktów i wyznaczenie okręgu opisującego
     pts = landmarks[iris_indices].astype(np.int32)
-
     (x, y), radius = cv2.minEnclosingCircle(pts)
-    center_x, center_y = (int(x), int(y))
+    center_x, center_y = int(x), int(y)
     r = int(radius)
-
 
     # --- KOREKTA NA NAJCIEMNIEJSZY PUNKT (ŹRENICĘ) ---
     roi_size = max(2, r // 2)
@@ -64,79 +65,50 @@ def get_iris_median(image, landmarks, iris_indices, angle, debug_image=None):
     roi = image[y_start:y_end, x_start:x_end]
     if roi.size > 0:
         gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        # Znajdujemy najciemniejszy punkt (źrenicę)
         _, _, min_loc, _ = cv2.minMaxLoc(gray_roi)
-        # Aktualizujemy środek
         center_x = x_start + min_loc[0]
         center_y = y_start + min_loc[1]
 
-    # --- CIĄG DALSZY LOGIKI MASKI ---
-
+    # --- LOGIKA MASKI (PIERŚCIEŃ) ---
     h, w = image.shape[:2]
     iris_mask = np.zeros((h, w), dtype=np.uint8)
 
-    width = int(1.25 * r)
-    useful_r = int(r * 0.8)
-    height = r
+    # A. Rysujemy całą tęczówkę, ale nieco mniejszą, by uciąć zewnętrzną krawędź
+    useful_r = int(r * 0.7)
+    cv2.circle(iris_mask, (center_x, center_y), useful_r, 255, -1)
 
-    rotated_rect = ((center_x, center_y), (width, height), angle)
-    box = cv2.boxPoints(rotated_rect)
-    box = np.int32(box)
-    cv2.drawContours(iris_mask, [box], 0, 255, -1)
-
-    #sam obrócony prostokąt
-
-
-    pupil_radius = int(r * 0.3)
+    # B. Wycinamy środek (źrenicę)
+    pupil_radius = int(r * 0.325)
     cv2.circle(iris_mask, (center_x, center_y), pupil_radius, 0, -1)
 
-    #obrócony prostokąt z dziurą na źrenice
+    # Wycinanie okręgami:
+    circle1_r = int(useful_r * 1.5)
+    c1_y = int(center_y - circle1_r + 0.5 * useful_r)
+    circle1 = create_circle(h, w, center_x, c1_y, circle1_r)
 
-    # Obcinanie górnych 40%
+    circle2_r = int(useful_r * 1.2)
+    c2_y = int(center_y + circle2_r - 0.7 * useful_r)
+    circle2 = create_circle(h, w, center_x, c2_y, circle2_r)
 
-    cutoff_dist = 0.2 * r # to jest "pionowa" odległość od środka źrenicy
+    circles = cv2.bitwise_and(circle1, circle2)
 
-    cutof_size = 10 * r
+    circles_mask = cv2.bitwise_and(circles, iris_mask)
 
-    pts1 = np.array([
-        [-cutof_size, -cutof_size],  # Lewy górny
-        [cutof_size, -cutof_size],  # Prawy górny
-        [cutof_size, -cutoff_dist],  # Prawy dolny (linia cięcia)
-        [-cutof_size, -cutoff_dist]  # Lewy dolny (linia cięcia)
-    ])
-
-    M = cv2.getRotationMatrix2D((0, 0), 180 - angle, 1)
-    rotated_pts = cv2.transform(np.array([pts1]), M)[0]
-    translated_pts = rotated_pts + [center_x, center_y]
-
-    # 5. Wypełniamy ten obszar zerami na finalnej masce
-    cv2.fillPoly(iris_mask, [translated_pts.astype(np.int32)], 0)
-
-    #odcięcie góry zgodnie z cutoff_dist
+    M = cv2.getRotationMatrix2D((center_x, center_y), -angle, 1.0)
+    final_mask = cv2.warpAffine(circles_mask, M, (circles_mask.shape[1], circles_mask.shape[0]))
 
 
-    final_iris_mask = iris_mask
+    # --- POBIERANIE PIKSELI I MEDIANA ---
+    iris_pixels = image[final_mask > 0]
 
-
-    iris_pixels = image[final_iris_mask > 0]
     if iris_pixels.size == 0:
-        return None, final_iris_mask
+        return None, final_mask
 
     median_bgr = np.median(iris_pixels, axis=0)
 
-    # #Rysowanie okręgu w celach diagnostycznych
-    # if debug_image is not None:
-    #     cv2.circle(debug_image, (center_x, center_y), 2, (0, 255, 0), -1)  # Środek źrenicy
-    #     cv2.circle(debug_image, (center_x, center_y), useful_r, (255, 255, 0), 1)  # Zakres tęczówki
 
-    overlay = image.copy()
-    overlay[final_iris_mask > 0] = [0, 255, 0]
 
-    alpha = 0.4
-    debug_image_combined = cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0)
-    cv2.imshow("Diagnostyka Maski", debug_image_combined)
-
-    return (int(median_bgr[0]), int(median_bgr[1]), int(median_bgr[2])), final_iris_mask
+    return (int(median_bgr[0]), int(median_bgr[1]), int(median_bgr[2])), final_mask
 
 
 def eyes_mask_and_median(image, landmarks, left_eye, right_eye, debug_image=None):
@@ -158,6 +130,16 @@ def eyes_mask_and_median(image, landmarks, left_eye, right_eye, debug_image=None
         eyes_color = left_color or right_color
 
     eyes_mask = cv2.bitwise_or(left_m, right_m)
+
+    # --- DIAGNOSTYKA ---
+    overlay = image.copy()
+    # Zaznaczamy maskę na zielono
+    overlay[eyes_mask > 0] = [0, 255, 0]
+
+    alpha = 0.4
+    debug_image_combined = cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0)
+
+    cv2.imshow("Diagnostyka Maski", debug_image_combined)
 
     return eyes_color, eyes_mask
 
