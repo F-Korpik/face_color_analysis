@@ -16,7 +16,7 @@ from core.median_colors import get_median_colors
 from core.color_analyzer import ColorAnalyzer
 
 
-TEST_IMAGE_PATH = os.path.join("data", "tests", "bright_spring.jpg")
+TEST_IMAGE_PATH = os.path.join("data", "input", "test4.jpg")
 img_height = 800
 
 
@@ -80,25 +80,25 @@ def run_face_analysis():
         # Podgląd
         cv2.imshow('Analiza Kolorystyczna', display_canvas)
 
-        # Wyświetlanie masek
-        mask_h = h // 2
-        mask_w = w // 2
-
-        masks_for_display = []
-        for key, value in masks.items():
-            resized_mask, _ = resize_img(value, mask_h)
-            resized_mask = cv2.cvtColor(resized_mask, cv2.COLOR_GRAY2BGR)
-            masks_for_display.append(resized_mask)
-
-        mh, mw = masks_for_display[0].shape[:2]
-        masks_canvas = np.full((mh * 2 + 20, mw * 2 + 20, 3), (255, 255, 255), dtype=np.uint8)
-
-        masks_canvas[5: mh + 5, 5: mw + 5] = masks_for_display[0]
-        masks_canvas[mh + 10: mh * 2 + 10, 5: mw + 5] = masks_for_display[1]
-        masks_canvas[5: mh + 5, mw + 10: mw * 2 + 10] = masks_for_display[2]
-        masks_canvas[mh + 10: mh * 2 + 10, mw + 10: mw * 2 + 10] = masks_for_display[3]
-
-        cv2.imshow('Maski', masks_canvas)
+        # # Wyświetlanie masek
+        # mask_h = h // 2
+        # mask_w = w // 2
+        #
+        # masks_for_display = []
+        # for key, value in masks.items():
+        #     resized_mask, _ = resize_img(value, mask_h)
+        #     resized_mask = cv2.cvtColor(resized_mask, cv2.COLOR_GRAY2BGR)
+        #     masks_for_display.append(resized_mask)
+        #
+        # mh, mw = masks_for_display[0].shape[:2]
+        # masks_canvas = np.full((mh * 2 + 20, mw * 2 + 20, 3), (255, 255, 255), dtype=np.uint8)
+        #
+        # masks_canvas[5: mh + 5, 5: mw + 5] = masks_for_display[0]
+        # masks_canvas[mh + 10: mh * 2 + 10, 5: mw + 5] = masks_for_display[1]
+        # masks_canvas[5: mh + 5, mw + 10: mw * 2 + 10] = masks_for_display[2]
+        # masks_canvas[mh + 10: mh * 2 + 10, mw + 10: mw * 2 + 10] = masks_for_display[3]
+        #
+        # cv2.imshow('Maski', masks_canvas)
 
         # --- ANALIZA PÓR ROKU ---
         if medians:

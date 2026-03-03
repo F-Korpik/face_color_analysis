@@ -109,63 +109,66 @@ class ColorAnalyzer:
 
 
     def get_preliminary_season(self):
+        # poprawić zgodnie z chatem
+
         temp_results = self.skin_temperature_analyzer()
         eye_results = self.eye_and_contrast_analyzer()
         lips_results = self.lips_analyzer()
 
-        skin_temp = temp_results["temperature"]
-        lips_temp = lips_results["lips_temp"]
         skin_hue = temp_results["hue_angle"]
         lips_hue = lips_results["lips_hue"]
-
-        # --- OBLICZANIE POCHYLENIA (BIAS) ---
-        # Sprawdzamy, czy "neutralność" skłania się ku ciepłu czy chłodowi
-        # bias > 0 = ciepłe leaning, bias < 0 = chłodne leaning
-        bias = (skin_hue - 50.0) + (lips_hue - 35.0)
-
-        # --- USTALANIE FINALNEJ TEMPERATURY ---
-        if lips_temp == "cool" and skin_temp == "warm":
-            final_temp = "cool"
-        elif lips_temp == "warm" and skin_temp == "cool":
-            final_temp = "warm"
-        elif skin_temp == "neutral":
-            final_temp = "warm" if bias > 0 else "cool"
-        else:
-            final_temp = skin_temp
-
-        # --- PARAMETRY DODATKOWE ---
-        contrast = eye_results["contrast_type"]
-        chroma = eye_results["chroma_type"]
         l_skin = self.lab_data["skin"][0]
-        is_light_type = l_skin > 70 and contrast == "low"
 
-        # --- LOGIKA DECYZYJNA ---
-        if final_temp == "cool":
-            if is_light_type:
-                season = "Light Summer"
-            elif chroma == "bright" or contrast == "high":
-                season = "Winter"
-            else:
-                season = "Summer"
+        contrast_type = eye_results["contrast_type"]
+        contrast_val = float(eye_results["contrast_score"])
+        chroma_type = eye_results["chroma_type"]
+        chroma_val = float(eye_results["chroma_score"])
 
-        else:  # final_temp == "warm"
-            # Rozróżnienie Jesień (Muted/Deep) vs Wiosna (Bright/Light)
-            # True Autumn często ma niską kontrastowość w pomiarze, ale ciepły bias
-            if contrast == "high":
-                season = "Autumn"
-            elif chroma == "bright" and not is_light_type:
-                # Wiosna jest zazwyczaj jaśniejsza i bardziej kontrastowa niż Soft Autumn
-                season = "Spring"
+        # --- OBLICZANIE BIASU (Współczynnik temperatury) ---
+        bias = (skin_hue - 50.0) + 1.5 * (lips_hue - 35.0)
+
+        # --- LOGIKA 12 TYPÓW (Hierarchia atrybutów) ---
+
+        # 1. PRIORYTET JASNOŚCI (Dla typów o niskim kontraście - np. Twoja modelka)
+        # Jeśli kontrast jest niski i skóra bardzo jasna, to typ "Light" ma pierwszeństwo przed "Bright"
+        if l_skin > 75 and contrast_val < 22:
+            season = "Light Spring" if bias > 0 else "Light Summer"
+
+        # 2. WYJĄTEK DLA WYSOKIEGO KONTRASTU (Typy Czyste/Zimowe - np. Daddario)
+        elif contrast_type == "high" and lips_results["lips_temp"] == "cool" and bias < 5:
+            # Obniżony próg dla "Bright", by wyłapać kontrastowe zimy o jasnych oczach
+            season = "Bright Winter" if chroma_val > 14 else "True Winter"
+
+        # 3. Dominanta: CHROMATYKA (Jeśli nie wpadliśmy w typy Light/High Contrast)
+        elif chroma_type == "bright":
+            season = "Bright Spring" if bias > 0 else "Bright Winter"
+        elif chroma_type == "muted":
+            season = "Soft Autumn" if bias > 0 else "Soft Summer"
+
+        # 4. Dominanta: GŁĘBIA (Ciemna skóra/Wysoki kontrast przy średniej jasności)
+        elif l_skin < 50 or (contrast_type == "high" and l_skin < 60):
+            season = "Deep Autumn" if bias > 0 else "Deep Winter"
+
+        # 5. Dominanta: TEMPERATURA (Typy "True" i pozostałe)
+        else:
+            if bias > 7.0:
+                season = "True Spring" if l_skin > 65 else "True Autumn"
+            elif bias < -7.0:
+                season = "True Winter" if contrast_type == "high" else "True Summer"
             else:
-                season = "Autumn"
+                # Typy neutralne "Flow"
+                if bias > 0:
+                    season = "Warm Spring" if l_skin > 65 else "Warm Autumn"
+                else:
+                    season = "Cool Summer" if l_skin > 65 else "Cool Winter"
 
         return {
             "season": season,
             "details": {
                 **temp_results,
-                **eye_results,
+                "eyes": eye_results,
                 "lips": lips_results,
-                "final_temp": final_temp,
-                "bias": round(bias, 2)
+                "bias": round(bias, 2),
+                "l_skin": round(l_skin, 2)
             }
         }
